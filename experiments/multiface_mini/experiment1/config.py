@@ -7,6 +7,13 @@
 import os
 import data.multiviewvideo as datamodel
 
+
+def camera_exclude_lists():
+    return ["400002"]
+
+def get_renderoptions():
+    return {"dt": 0.4, "chlast": True, "algo": 1, "sortprims": False, "usebvh": "fixedorder"}
+
 def get_dataset(camerafilter=lambda x: True, maxframes=-1, subsampletype=None):
     root_dir = "/root/datasets/multiface_mini/m--20180227--0000--6795937--GHS"
     return datamodel.Dataset(
@@ -21,18 +28,24 @@ def get_dataset(camerafilter=lambda x: True, maxframes=-1, subsampletype=None):
     )
 
 def get_autoencoder(dataset):
-    # import models.colorcals.colorcal1 as colorcalib
     import models.volumetric as aemodel
     import models.encoders.geotex as encoderlib
     import models.decoders.mvp as decoderlib
     import models.raymarchers.mvpraymarcher as raymarcherlib
-    import models.colorcals as colorcalib
+    import models.colorcals.colorcal as colorcalib  
     import utils.utils as utils
-    
-    obj_data_path = os.path.join(dataset.geomdir, "tracked_mesh", dataset.seg, f"{dataset.frame:06d}.obj")
+
+    import torch
+
+    root_dir = "/root/datasets/multiface_mini"
+    seqname = "m--20180227--0000--6795937--GHS"
+    seg = "E057_Cheeks_Puffed"
+    frame = 21897
+    obj_data_path = f"{root_dir}/{seqname}/tracked_mesh/{seg}/{frame:06d}.obj"
+
     v, vt, vindices, vtindices = utils.load_obj(obj_data_path)
     idxim, tidxim, barim = utils.gentritex(v, vt, vindices, vtindices, 1024)
-    vertmean, vertstd = dataset.vertmean, dataset.vertstd
+    vertmean, vertstd = torch.tensor(dataset.vertmean), torch.tensor(dataset.vertstd)
 
     volradius = 1.0
 
@@ -47,12 +60,16 @@ def get_autoencoder(dataset):
             tidxim=tidxim,
             barim=barim,
             volradius=volradius,
-            nprims=4096,
+            # nprims=4096,
+            nprims=1024,
             primsize=(32, 32, 32),
+            # primsize=(16, 16, 16),
         ),
         raymarcher=raymarcherlib.Raymarcher(volradius=volradius),
         colorcal=colorcalib.Colorcal(dataset.allcameras),
-        volradius=volradius
+        # volradius=volradius,
+        volradius=256 * 4,
+        encoderinputs=["verts", "avgtex"],
         )
 
 ### profiles
@@ -79,10 +96,10 @@ class Train():
                 "irgbmse": 1.0,
                 }
     def get_outputlist(self):
-        return ["irgbrec"]
+        return ["irgbrec", "rmtime"]
     
     def get_ae_args(self):
-        return {"renderoptions": {"dt": 0.01}}
+        return dict(renderoptions=get_renderoptions())
 
 class ProgressWriter():
     def batch(self, iternum, itemnum, **kwargs):
@@ -106,37 +123,37 @@ class Progress():
     """Write out diagnostic images during training."""
     batchsize=2
 
-    def get_ae_args(self): return dict(outputlist=["irgbrec"], renderoptions={"dt": 0.01})
+    def get_ae_args(self): return dict(outputlist=["irgbrec", "rmtime"], renderoptions=get_renderoptions())
     def get_dataset(self): return get_dataset(maxframes=1)
     def get_writer(self): return ProgressWriter()
     def get_outputlist(self):
         return ["irgbrec"]
 
-class Render():
-    """Render model with training camera or from novel viewpoints.
+# class Render():
+#     """Render model with training camera or from novel viewpoints.
     
-    e.g., python render.py {configpath} Render --maxframes 128"""
-    def __init__(self, cam=None, maxframes=-1, showtarget=False, viewtemplate=False):
-        self.cam = cam
-        self.maxframes = maxframes
-        self.showtarget = showtarget
-        self.viewtemplate = viewtemplate
-    def get_autoencoder(self, dataset): return get_autoencoder(dataset)
-    def get_ae_args(self): return dict(outputlist=["irgbrec"], viewtemplate=self.viewtemplate)
-    def get_dataset(self):
-        import data.utils
-        import eval.cameras.rotate as cameralib
-        dataset = get_dataset(camerafilter=lambda x: x == self.cam, maxframes=self.maxframes)
-        if self.cam is None:
-            camdataset = cameralib.Dataset(len(dataset))
-            return data.utils.JoinDataset(camdataset, dataset)
-        else:
-            return dataset
-    def get_writer(self):
-        import eval.writers.videowriter as writerlib
-        return writerlib.Writer(
-            os.path.join(os.path.dirname(__file__),
-                "render_{}{}.mp4".format(
-                    "rotate" if self.cam is None else self.cam,
-                    "_template" if self.viewtemplate else "")),
-            showtarget=self.showtarget)
+#     e.g., python render.py {configpath} Render --maxframes 128"""
+#     def __init__(self, cam=None, maxframes=-1, showtarget=False, viewtemplate=False):
+#         self.cam = cam
+#         self.maxframes = maxframes
+#         self.showtarget = showtarget
+#         self.viewtemplate = viewtemplate
+#     def get_autoencoder(self, dataset): return get_autoencoder(dataset)
+#     def get_ae_args(self): return dict(outputlist=["irgbrec"], viewtemplate=self.viewtemplate)
+#     def get_dataset(self):
+#         import data.utils
+#         import eval.cameras.rotate as cameralib
+#         dataset = get_dataset(camerafilter=lambda x: x == self.cam, maxframes=self.maxframes)
+#         if self.cam is None:
+#             camdataset = cameralib.Dataset(len(dataset))
+#             return data.utils.JoinDataset(camdataset, dataset)
+#         else:
+#             return dataset
+#     def get_writer(self):
+#         import eval.writers.videowriter as writerlib
+#         return writerlib.Writer(
+#             os.path.join(os.path.dirname(__file__),
+#                 "render_{}{}.mp4".format(
+#                     "rotate" if self.cam is None else self.cam,
+#                     "_template" if self.viewtemplate else "")),
+#             showtarget=self.showtarget)

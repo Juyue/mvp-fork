@@ -27,13 +27,13 @@ def compute_raydirs_ref(pixelcoords : torch.Tensor, viewrot : torch.Tensor, foca
 
     return raydir
 
-@torch.jit.script
+# @torch.jit.script
 def compute_rmbounds(viewpos : torch.Tensor, raydir : torch.Tensor, volradius : float):
     viewpos = viewpos / volradius
 
     # compute raymarching starting points
     with torch.no_grad():
-        t1 = (-1. - viewpos[:, None, None, :]) / raydir
+        t1 = (-1. - viewpos[:, None, None, :]) / raydir # [B, H', W', 3]
         t2 = ( 1. - viewpos[:, None, None, :]) / raydir
         tmin = torch.max(torch.min(t1[..., 0], t2[..., 0]),
                torch.max(torch.min(t1[..., 1], t2[..., 1]),
@@ -206,6 +206,7 @@ class Autoencoder(nn.Module):
                 trainiter=trainiter,
                 evaliter=evaliter,
                 losslist=losslist)
+        
         if "dectime" in outputlist:
             torch.cuda.synchronize()
             decend = time.time()
@@ -259,6 +260,25 @@ class Autoencoder(nn.Module):
         # compute ray directions
         if self.cudaraydirs:
             raypos, raydir, tminmax = compute_raydirs(viewpos, viewrot, focal, princpt, pixelcoords, self.volradius)
+
+            raydir_torch = compute_raydirs_ref(pixelcoords, viewrot, focal, princpt)
+
+            print("raydir")
+            print(raydir[0, 512, 512, :].cpu().numpy())
+            print(raydir_torch[0, 512, 512, :].cpu().numpy())
+
+            raypos_torch_v1, tminmax_torch_v1 = compute_rmbounds(viewpos, raydir_torch, self.volradius)
+            raypos_torch_v2, tminmax_torch_v2 = compute_rmbounds(viewpos, raydir, self.volradius)
+
+            print("raypos")
+            print(raypos[0, 512, 512, :].cpu().numpy())
+            print(raypos_torch_v1[0, 512, 512, :].cpu().numpy())
+            print(raypos_torch_v2[0, 512, 512, :].cpu().numpy())
+
+            print("tminmax")
+            print(tminmax[0, 512, 512, :].cpu().numpy())
+            print(tminmax_torch_v1[0, 512, 512, :].cpu().numpy())
+            print(tminmax_torch_v2[0, 512, 512, :].cpu().numpy())
         else:
             raydir = compute_raydirs_ref(pixelcoords, viewrot, focal, princpt)
             raypos, tminmax = compute_rmbounds(viewpos, raydir, self.volradius)

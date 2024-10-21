@@ -251,7 +251,7 @@ class Decoder(nn.Module):
         ----------
         vt : numpy.array [V, 2]
             mesh vertex texture coordinates
-        vertmean : numpy.array [V, 3]
+        vertmean : torch.Tensor [V, 3]
             mesh vertex position average (average over time)
         vertstd : float
             mesh vertex position standard deviation (over time)
@@ -348,6 +348,7 @@ class Decoder(nn.Module):
             self.register_buffer("vt", vt, persistent=False)
 
         if vertmean is not None:
+            vertmean = torch.tensor(vertmean) if not isinstance(vertmean, torch.Tensor) else vertmean
             self.register_buffer("vertmean", vertmean, persistent=False)
         self.vertstd = vertstd
 
@@ -410,7 +411,7 @@ class Decoder(nn.Module):
         if not self.nogeo:
             # decode mesh vertices
             geo = self.geobranch(encoding)
-            geo = geo.view(encoding.size(0), -1, 3)
+            geo = geo.view(encoding.size(0), -1, 3) # [B, V, 3]
             geo = geo * self.vertstd + self.vertmean
 
             # placement of primitives on mesh
@@ -422,7 +423,7 @@ class Decoder(nn.Module):
             v0 = geo[:, self.idxim[stridey//2::stridey, stridex//2::stridex, 0], :]
             v1 = geo[:, self.idxim[stridey//2::stridey, stridex//2::stridex, 1], :]
             v2 = geo[:, self.idxim[stridey//2::stridey, stridex//2::stridex, 2], :]
-
+            # [B, N, 2], vertex positions in UV space; predetermined by mesh topology
             vt0 = self.vt[self.tidxim[stridey//2::stridey, stridex//2::stridex, 0], :]
             vt1 = self.vt[self.tidxim[stridey//2::stridey, stridex//2::stridex, 1], :]
             vt2 = self.vt[self.tidxim[stridey//2::stridey, stridex//2::stridex, 2], :]

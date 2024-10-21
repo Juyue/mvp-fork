@@ -553,7 +553,11 @@ def gradcheck(usebvh=True, sortprims=True, maxhitboxes=512, synchitboxes=False,
                 g1.view(-1)[ind].item()))
 
 if __name__ == "__main__":
-    gradcheck(usebvh="fixedorder", sortprims=False, maxhitboxes=512, synchitboxes=True,
-            dowarp=False, chlast=True, fadescale=6.5, fadeexp=7.5, accum=0, algo=0, griddim=3)
+    import debugpy
+    debugpy.listen(5700)
+    debugpy.wait_for_client()
+
     gradcheck(usebvh="fixedorder", sortprims=False, maxhitboxes=512, synchitboxes=True,
             dowarp=True, chlast=True, fadescale=6.5, fadeexp=7.5, accum=0, algo=1, griddim=3)
+    gradcheck(usebvh="fixedorder", sortprims=False, maxhitboxes=512, synchitboxes=True,
+            dowarp=False, chlast=True, fadescale=6.5, fadeexp=7.5, accum=0, algo=0, griddim=3)

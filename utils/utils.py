@@ -162,10 +162,16 @@ def downsample_mask(mask, factor):
 
 def gentritex(v, vt, vi, vti, texsize):
     """Create 3 texture maps containing the vertex indices, texture vertex
-    indices, and barycentric coordinates"""
-    vt = np.array(vt, dtype=np.float32)
-    vi = np.array(vi, dtype=np.int32)
-    vti = np.array(vti, dtype=np.int32)
+    indices, and barycentric coordinates
+    v: A list or array of vertex positions. Each vertex is typically represented as a 3D coordinate (x, y, z). The shape of v should be (N, 3), where N is the number of vertices.
+    vt: A list or array of texture vertex positions. Similar to v, each texture vertex is represented as a 2D coordinate (u, v). The shape of vt should be (M, 2), where M is the number of texture vertices.
+    vi: An array of vertex indices that define the triangles. Each entry in vi is an index into the v array, and each triangle is defined by three indices. The shape of vi should be (T, 3), where T is the number of triangles.
+    vti: An array of texture vertex indices that define the texture mapping for the triangles. Each entry in vti is an index into the vt array, and each triangle is defined by three indices. The shape of vti should also be (T, 3).
+    """
+
+    vt = np.array(vt, dtype=np.float32) # [N, 2]
+    vi = np.array(vi, dtype=np.int32) # [T, 3]
+    vti = np.array(vti, dtype=np.int32) # [T, 3]
     ntris = vi.shape[0]
 
     texu, texv = np.meshgrid(
@@ -173,7 +179,8 @@ def gentritex(v, vt, vi, vti, texsize):
             (np.arange(texsize) + 0.5) / texsize)
     texuv = np.stack((texu, texv), axis=-1)
 
-    vt = vt[vti]
+    vt = vt[vti] # [T, 3, 2]
+    print(vt.shape)
 
     viim = np.zeros((texsize, texsize, 3), dtype=np.int32)
     vtiim = np.zeros((texsize, texsize, 3), dtype=np.int32)

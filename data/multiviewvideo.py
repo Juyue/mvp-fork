@@ -50,7 +50,7 @@ class Dataset(torch.utils.data.Dataset):
             geomdir : str,
             imagepath : str,
             keyfilter : list,
-            camerafilter : Callable[[str], bool],
+            camerafilter : Callable[[str], bool]=lambda x: True,
             segmentfilter : Callable[[str], bool]=lambda x: True,
             framelist : Optional[list]=None,
             frameexclude : list=[],
@@ -191,7 +191,10 @@ class Dataset(torch.utils.data.Dataset):
             self.camrot[cam] = (krt[cam]['extrin'][:3, :3]).astype(np.float32)
             self.focal[cam] = (np.diag(krt[cam]['intrin'][:2, :2]) / downsample).astype(np.float32)
             self.princpt[cam] = (krt[cam]['intrin'][:2, 2] / downsample).astype(np.float32)
+            if "size" not in krt[cam]:  
+                krt[cam]["size"] = np.array([2048, 1334])
             self.size[cam] = np.floor(krt[cam]['size'].astype(np.float32) / downsample).astype(np.int32)
+            
 
         # set up paths
         self.imagepath = imagepath
@@ -204,7 +207,8 @@ class Dataset(torch.utils.data.Dataset):
 
         # build list of frames
         if framelist is None:
-            framelist = np.genfromtxt(os.path.join(geomdir, "frame_list.txt"), dtype=np.str)
+            # framelist = np.genfromtxt(os.path.join(geomdir, "frame_list.txt"), dtype=np.str)
+            framelist = np.genfromtxt(os.path.join(geomdir, "frame_list.txt"), dtype=str)
             self.framelist = [tuple(sf) for sf in framelist if segmentfilter(sf[0]) and sf[1] not in frameexclude]
         else:
             self.framelist = framelist
@@ -230,7 +234,9 @@ class Dataset(torch.utils.data.Dataset):
                 seg=baseposesegframe[0],
                 frame=baseposesegframe[1])).astype(np.float32)
         else:
-            raise Exception("base transformation must be provided")
+            print("base transformation is not provided. use identity matrix")
+            self.basetransf = np.eye(3, 4, dtype=np.float32)
+            # raise Exception("base transformation must be provided")
 
         # load normstats
         if "avgtex" in keyfilter or "tex" in keyfilter:
@@ -349,7 +355,7 @@ class Dataset(torch.utils.data.Dataset):
             if k in self.keyfilter:
                 texpath = self.texpath.format(seg=seg, cam="average", frame=int(frame) + (1 if k == "avgtex_next" else 0))
                 try:
-                    tex = np.asarray(Image.open(texpath), dtype=np.uint8)
+                    tex = np.asarray(Image.open(texpath), dtype=np.uint8) # (1024, 1024, 3)
                     if tex.shape[0] != self.avgtexsize:
                         tex = cv2.resize(tex, dsize=(self.avgtexsize, self.avgtexsize), interpolation=cv2.INTER_LINEAR)
                     tex = tex.transpose((2, 0, 1)).astype(np.float32)
@@ -416,7 +422,7 @@ class Dataset(torch.utils.data.Dataset):
 
             # per-frame / per-camera unwrapped texture map
             if "tex" in self.keyfilter:
-                texpath = self.texpath.format(seg=seg, cam=cam, frame=frame)
+                texpath = self.texpath.format(seg=seg, cam=cam, frame=int(frame))
                 try:
                     tex = np.asarray(Image.open(texpath), dtype=np.uint8).transpose((2, 0, 1)).astype(np.float32)
                 except:
@@ -491,7 +497,7 @@ class Dataset(torch.utils.data.Dataset):
                 elif self.subsampletype == None:
                     py, px = torch.meshgrid(torch.arange(height).float(), torch.arange(width).float())
                 else:
-                    raise
+                    raise Exception("unknown subsampletype")
 
                 result["pixelcoords"] = torch.stack([px, py], dim=-1)
 

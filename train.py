@@ -30,11 +30,20 @@ if __name__ == "__main__":
     parser.add_argument('--noprogress', action='store_true', help='don\'t output training progress images')
     parser.add_argument('--nostab', action='store_true', help='don\'t check loss stability')
     parser.add_argument('--scripting', action='store_true', help='use torch.jit.script')
+    parser.add_argument('--debug', action='store_true', help='debug mode')
+    parser.add_argument('--num-workers', type=int, default=1, help='number of workers')
+
     parsed, unknown = parser.parse_known_args()
     for arg in unknown:
         if arg.startswith(("-", "--")):
             parser.add_argument(arg, type=eval)
     args = parser.parse_args()
+    if args.debug:
+        import debugpy
+        debugpy.listen(5700)
+        print("Waiting for debugger attach")
+        debugpy.wait_for_client()
+        print("Debugger attached")
 
     outpath = os.path.dirname(args.experconfig)
     if args.resume:
@@ -71,11 +80,11 @@ if __name__ == "__main__":
         dataloader = torch.utils.data.DataLoader(dataset,
                 batch_size=profile.batchsize,
                 sampler=profile.get_dataset_sampler(), drop_last=True,
-                num_workers=8, persistent_workers=True)
+                num_workers=args.num_workers, persistent_workers=True)
     else:
         dataloader = torch.utils.data.DataLoader(dataset,
                 batch_size=profile.batchsize, shuffle=True, drop_last=True,
-                num_workers=8, persistent_workers=True)
+                num_workers=args.num_workers, persistent_workers=True)
     print("Dataset instantiated ({:.2f} s)".format(time.time() - starttime))
 
     # data writer
@@ -149,10 +158,10 @@ if __name__ == "__main__":
                 with torch.no_grad():
                     testoutput, _ = ae(
                             trainiter=iternum,
-                            outputlist=progressprof.get_outputlist() + ["rmtime"],
+                            outputlist=profile.get_outputlist(),
                             losslist=[],
                             **utils.tocuda(testbatch),
-                            **progressprof.get_ae_args())
+                            **profile.get_ae_args())
 
                 print("Iteration {}: rmtime = {:.5f}".format(iternum, testoutput["rmtime"] * 1000.))
 
